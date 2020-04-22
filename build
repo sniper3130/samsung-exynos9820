@@ -104,7 +104,7 @@ kernel/configs/cruel*.conf directory.
 """
     print(msg)
 
-def parse_args(configs):
+def parse_stage():
     stages = []
     modes = ['config', 'build', 'mkimg', 'flash']
     omodes = [':build', ':mkimg', ':flash']
@@ -123,68 +123,6 @@ def parse_args(configs):
         print_usage()
         fatal('Please, specify the mode from {}.'.format(all_modes))
 
-    if mode in modes or mode == ':mkimg':
-        for arg in argv[2:]:
-            if arg.find('=') != -1:
-                (key, value) = arg.split('=', 1)
-
-                if key not in ['name', 'model', 'os_patch_level']:
-                    print_usage()
-                    fatal('Unknown config {}.'.format(key))
-
-                configs[key] = value
-                if not value:
-                    print_usage()
-                    fatal('Please, use {}="<name>".'.format(key))
-                if key == 'model':
-                    if value not in models:
-                        fatal('Unknown device model: ' + configs['model'])
-                    else:
-                        symlink_force('build.mkbootimg.' + configs['model'], 'build.mkbootimg')
-                if key == 'os_patch_level':
-                    try:
-                        datetime.strptime(value, '%Y-%m')
-                    except Exception:
-                        print_usage()
-                        fatal('Please, use os_patch_level="YYYY-MM". For example: os_patch_level="2020-02"')
-            else:
-                switch = arg[0:1]
-                enable = True if switch == '+' else False
-                opt = arg[1:]
-                if switch not in ['+', '-']:
-                    print_usage()
-                    fatal("Unknown switch '{0}'. Please, use '+{0}'/'-{0}' to enable/disable option.".format(arg))
-
-                if opt == 'magisk+canary':
-                    opt = 'magisk'
-                    configs['kernel'][opt]['enabled'] = enable
-                    configs['kernel'][opt]['canary'] = True
-                elif opt == 'magisk-canary':
-                    opt = 'magisk'
-                    configs['kernel'][opt]['enabled'] = enable
-                    configs['kernel'][opt]['canary'] = False
-                elif opt == 'magisk':
-                    configs['kernel'][opt]['enabled'] = enable
-                    configs['kernel'][opt]['canary'] = False
-                elif opt in configs['kernel']:
-                    configs['kernel'][opt]['enabled'] = enable
-                else:
-                    print_usage()
-                    fatal("Unknown config '{}'.".format(opt))
-
-                if enable:
-                    if not opt in configs['order']:
-                        configs['order'].append(opt)
-                else:
-                    if opt in configs['order']:
-                        configs['order'].remove(opt)
-        if 'model' not in configs:
-            if os.path.exists('build.mkbootimg') and os.path.islink('build.mkbootimg'):
-                link = os.readlink('build.mkbootimg')
-                configs['model'] = link[link.rindex('.')+1:]
-            else:
-                print_usage()
-                fatal('Please, use model="<model>". For example: model="G973F"')
     return stages
 
 def find_configs():
@@ -203,6 +141,73 @@ def find_configs():
             configs['kernel'][name]['canary'] = False
         if enabled:
             configs['order'].append(name)
+    return configs
+
+def parse_args():
+    configs = find_configs()
+
+    for arg in argv[2:]:
+        if arg.find('=') != -1:
+            (key, value) = arg.split('=', 1)
+
+            if key not in ['name', 'model', 'os_patch_level']:
+                print_usage()
+                fatal('Unknown config {}.'.format(key))
+
+            configs[key] = value
+            if not value:
+                print_usage()
+                fatal('Please, use {}="<name>".'.format(key))
+            if key == 'model':
+                if value not in models:
+                    fatal('Unknown device model: ' + configs['model'])
+                else:
+                    symlink_force('build.mkbootimg.' + configs['model'], 'build.mkbootimg')
+            if key == 'os_patch_level':
+                try:
+                    datetime.strptime(value, '%Y-%m')
+                except Exception:
+                    print_usage()
+                    fatal('Please, use os_patch_level="YYYY-MM". For example: os_patch_level="2020-02"')
+        else:
+            switch = arg[0:1]
+            enable = True if switch == '+' else False
+            opt = arg[1:]
+            if switch not in ['+', '-']:
+                print_usage()
+                fatal("Unknown switch '{0}'. Please, use '+{0}'/'-{0}' to enable/disable option.".format(arg))
+
+            if opt == 'magisk+canary':
+                opt = 'magisk'
+                configs['kernel'][opt]['enabled'] = enable
+                configs['kernel'][opt]['canary'] = True
+            elif opt == 'magisk-canary':
+                opt = 'magisk'
+                configs['kernel'][opt]['enabled'] = enable
+                configs['kernel'][opt]['canary'] = False
+            elif opt == 'magisk':
+                configs['kernel'][opt]['enabled'] = enable
+                configs['kernel'][opt]['canary'] = False
+            elif opt in configs['kernel']:
+                configs['kernel'][opt]['enabled'] = enable
+            else:
+                print_usage()
+                fatal("Unknown config '{}'.".format(opt))
+
+            if enable:
+                if not opt in configs['order']:
+                    configs['order'].append(opt)
+            else:
+                if opt in configs['order']:
+                    configs['order'].remove(opt)
+    if 'model' not in configs:
+        if os.path.exists('build.mkbootimg') and os.path.islink('build.mkbootimg'):
+            link = os.readlink('build.mkbootimg')
+            configs['model'] = link[link.rindex('.')+1:]
+        else:
+            print_usage()
+            fatal('Please, use model="<model>". For example: model="G973F"')
+
     return configs
 
 def config_name(name):
@@ -334,18 +339,19 @@ def flash(boot):
         fatal("Please, install 'adb' and 'heimdall'")
 
 if __name__ == "__main__":
-    configs = find_configs()
     setup_environ(ARCH='arm64', ANDROID_MAJOR_VERSION='q')
-    stages = parse_args(configs)
-
-    if configs['kernel']['fake_config']['enabled']:
-        defconfig = 'arch/arm64/configs/' + models[configs['model']]['config']
-        setup_environ(KCONFIG_BUILTINCONFIG=defconfig)
+    stages = parse_stage()
 
     if 'config' in stages:
         if os.path.exists('build.info'):
             os.remove('build.info')
         print_info("Build date: " + datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"))
+
+        configs = parse_args()
+
+        if configs['kernel']['fake_config']['enabled']:
+            defconfig = 'arch/arm64/configs/' + models[configs['model']]['config']
+            setup_environ(KCONFIG_BUILTINCONFIG=defconfig)
         if 'name' in configs:
             print_info('Name: ' + configs['name'])
         else:
