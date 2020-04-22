@@ -40,11 +40,6 @@ models = {
 }
 
 
-def print_info(*args, **kwargs):
-    print(*args, **kwargs)
-    with open('build.info','a') as fh:
-        print(*args, **kwargs, file=fh)
-
 def symlink_force(target, link_name):
     try:
         os.symlink(target, link_name)
@@ -226,34 +221,32 @@ def make_config(configs):
     kernel_configs = configs['kernel']
     for key in configs['order']:
         if kernel_configs[key]['enabled']:
-            conf_msg.append(key + " (default: " + ("On" if kernel_configs[key]['default'] else "Off") + ")")
+            conf_msg.append(key + ' (default: ' + ('On' if kernel_configs[key]['default'] else 'Off') + ')')
             list.append(kernel_configs[key]['path'])
     if conf_msg:
-        print_info('Configuration:')
+        print('Configuration:')
         for i in conf_msg:
-            print_info("\t" + i)
+            print("\t" + i)
     else:
-        print_info('Configuration: basic only')
+        print('Configuration: basic')
 
     run(list)
 
     if 'name' in configs:
-        print("Setting kernel name to: " + configs['name'])
         config_name(configs['name'])
 
     if 'model' in configs:
-        print("Setting kernel model to: " + configs['model'])
         config_model(configs['model'])
 
     if 'os_patch_level' in configs:
-        print_info("OS Patch Level: " + configs['os_patch_level'])
+        print('OS Patch Level: ' + configs['os_patch_level'])
     else:
         with open('build.mkbootimg.' + configs['model'], 'r') as fh:
             for line in fh:
                 (arg, val) = line.split('=', 1)
                 val = val.rstrip()
                 if arg == 'os_patch_level':
-                    print_info("OS Patch Level: " + val)
+                    print('OS Patch Level: ' + val)
                     break
 
 def update_magisk(canary):
@@ -262,7 +255,7 @@ def update_magisk(canary):
         cmd.append('--canary')
     run(cmd, check=True)
     with open('usr/magisk/magisk_version', 'r') as fh:
-        print_info("Magisk Version: " + fh.readline())
+        print('Magisk Version: ' + fh.readline())
 
 def build():
     run(['make', '-j', str(get_cores_num())], check=True)
@@ -292,14 +285,14 @@ def mkbootimg(os_patch_level, config, output, **files):
 
 def mkvbmeta(output):
     if tool_exists('avbtool'):
-        print("Preparing vbmeta...")
+        print('Preparing vbmeta...')
         run(['avbtool', 'make_vbmeta_image', '--out', output], check=True)
     else:
         fatal("Please, install 'avbtool'.")
 
 def mkaptar(boot, vbmeta):
     if tool_exists('tar') and tool_exists('md5sum') and tool_exists('lz4'):
-        print("Preparing AP.tar.md5...")
+        print('Preparing AP.tar.md5...')
         run(['lz4', '-m', '-f', '-B6', '--content-size', boot, vbmeta], check=True)
         run(['tar', '-H', 'ustar', '-c', '-f', 'AP.tar', boot + '.lz4', vbmeta + '.lz4'], check=True)
         run(['md5sum AP.tar >> AP.tar && mv AP.tar AP.tar.md5'], check=True, shell=True)
@@ -345,7 +338,7 @@ if __name__ == "__main__":
     if 'config' in stages:
         if os.path.exists('build.info'):
             os.remove('build.info')
-        print_info("Build date: " + datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"))
+        print('Build date: ' + datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'))
 
         configs = parse_args()
 
@@ -353,17 +346,17 @@ if __name__ == "__main__":
             defconfig = 'arch/arm64/configs/' + models[configs['model']]['config']
             setup_environ(KCONFIG_BUILTINCONFIG=defconfig)
         if 'name' in configs:
-            print_info('Name: ' + configs['name'])
+            print('Name: ' + configs['name'])
         else:
-            print_info('Name: CRUEL')
-        print_info('Model: ' + configs['model'])
+            print('Name: CRUEL')
+        print('Model: ' + configs['model'])
         if configs['kernel']['magisk']['enabled']:
             update_magisk(configs['kernel']['magisk']['canary'])
         make_config(configs)
     if 'build' in stages:
         build()
     if 'mkimg' in stages:
-        os_patch_level = ""
+        os_patch_level = ''
         if 'os_patch_level' in configs:
             os_patch_level = configs['os_patch_level']
         mkbootimg(os_patch_level, 'build.mkbootimg.' + configs['model'], 'boot.img', kernel='arch/arm64/boot/Image')
