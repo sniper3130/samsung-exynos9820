@@ -4,6 +4,7 @@ import os, errno
 from sys import argv, stderr
 import re
 import json
+from copy import deepcopy
 from datetime import datetime
 from subprocess import run, DEVNULL
 
@@ -138,6 +139,13 @@ def find_configs():
         if enabled:
             configs['order'].append(name)
     return configs
+
+def save_config(file, configs):
+    conf = deepcopy(configs)
+    del conf['kernel']
+    conf['config'] = conf.pop('order')
+    with open(file, 'w') as fh:
+        json.dump(conf, fh, sort_keys=True, indent=4)
 
 def parse_args():
     configs = find_configs()
@@ -355,8 +363,7 @@ if __name__ == "__main__":
             update_magisk(configs['kernel']['magisk']['canary'])
         make_config(configs)
 
-        with open('build.info', 'w') as fh:
-            json.dump(configs, fh, sort_keys=True, indent=4)
+        save_config('build.info', configs)
     if 'build' in stages:
         build()
     if 'mkimg' in stages:
